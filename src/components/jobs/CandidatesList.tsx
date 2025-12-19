@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { MessageSquare, Mail, Loader2, User, Clock } from 'lucide-react';
@@ -50,8 +51,12 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [messageContent, setMessageContent] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailContent, setEmailContent] = useState('');
   const [sendingMessages, setSendingMessages] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
   const queryClient = useQueryClient();
   const startConversation = useStartConversation();
   const sendMessage = useSendMessage();
@@ -67,7 +72,6 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
       
       if (error) throw error;
 
-      // Get profiles for each application
       const userIds = data.map(a => a.user_id);
       const { data: profiles } = await supabase
         .from('profiles')
@@ -138,6 +142,40 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
     }
   };
 
+  const handleSendEmails = async () => {
+    if (!emailContent.trim() || selectedCandidates.length === 0) return;
+    
+    setSendingEmails(true);
+    try {
+      const emails = applications
+        ?.filter(a => selectedCandidates.includes(a.user_id))
+        .map(a => a.profile?.email)
+        .filter(Boolean) as string[];
+
+      const { data, error } = await supabase.functions.invoke('send-candidate-email', {
+        body: {
+          to: emails,
+          subject: emailSubject || `Atualização sobre a vaga: ${jobTitle}`,
+          message: emailContent,
+          jobTitle,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Email enviado para ${emails.length} candidato(s)!`);
+      setEmailDialogOpen(false);
+      setEmailSubject('');
+      setEmailContent('');
+      setSelectedCandidates([]);
+    } catch (error) {
+      console.error('Email error:', error);
+      toast.error('Erro ao enviar emails');
+    } finally {
+      setSendingEmails(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -148,7 +186,7 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-4">
           <Checkbox 
             checked={selectedCandidates.length === applications?.length && applications?.length > 0}
@@ -163,7 +201,11 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setMessageDialogOpen(true)}>
               <MessageSquare className="w-4 h-4 mr-2" />
-              Enviar Mensagem
+              Mensagem
+            </Button>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(true)}>
+              <Mail className="w-4 h-4 mr-2" />
+              Email
             </Button>
           </div>
         )}
@@ -194,7 +236,7 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
                   </Avatar>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <h4 className="font-semibold">{app.profile?.full_name || 'Usuário'}</h4>
                         <p className="text-sm text-muted-foreground">{app.profile?.email}</p>
@@ -260,6 +302,7 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
         </div>
       )}
 
+      {/* Message Dialog */}
       <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -267,7 +310,7 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              A mensagem será enviada para {selectedCandidates.length} candidato(s) selecionado(s).
+              A mensagem será enviada para {selectedCandidates.length} candidato(s) selecionado(s) no sistema.
             </p>
             <Textarea
               placeholder="Digite sua mensagem..."
@@ -283,6 +326,41 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
             <Button onClick={handleSendMessages} disabled={sendingMessages || !messageContent.trim()}>
               {sendingMessages && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Enviar Mensagem
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar Email para Candidatos</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O email será enviado para {selectedCandidates.length} candidato(s) selecionado(s).
+            </p>
+            <Input
+              placeholder="Assunto do email (opcional)"
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+            />
+            <Textarea
+              placeholder="Digite o conteúdo do email..."
+              value={emailContent}
+              onChange={(e) => setEmailContent(e.target.value)}
+              rows={5}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSendEmails} disabled={sendingEmails || !emailContent.trim()}>
+              {sendingEmails && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              <Mail className="w-4 h-4 mr-2" />
+              Enviar Email
             </Button>
           </DialogFooter>
         </DialogContent>
