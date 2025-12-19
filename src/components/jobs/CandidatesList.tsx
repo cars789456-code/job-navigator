@@ -82,7 +82,7 @@ export function CandidatesList({ jobId, jobTitle }: CandidatesListProps) {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ applicationId, status }: { applicationId: string; status: string }) => {
+    mutationFn: async ({ applicationId, status }: { applicationId: string; status: 'pending' | 'reviewed' | 'interview' | 'rejected' | 'hired' }) => {
       const { error } = await supabase
         .from('applications')
         .update({ status })
