@@ -4,12 +4,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Briefcase, MessageSquare, User, LogOut, Menu, X, Building2 } from 'lucide-react';
+import { Briefcase, MessageSquare, User, LogOut, Menu, X, Building2, BarChart3 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { JobSearch } from '@/components/jobs/JobSearch';
 import { JobsManagement } from '@/components/jobs/JobsManagement';
 import { MessagesPanel } from '@/components/messages/MessagesPanel';
 import { ProfileEdit } from '@/components/profile/ProfileEdit';
+import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
 
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const navItems = [
     { to: '/dashboard', icon: Briefcase, label: 'Vagas' },
     { to: '/dashboard/gerenciar', icon: Building2, label: 'Gerenciar' },
+    { to: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
     { to: '/dashboard/mensagens', icon: MessageSquare, label: 'Mensagens' },
     { to: '/dashboard/perfil', icon: User, label: 'Perfil' },
   ];
@@ -121,6 +123,7 @@ export default function Dashboard() {
         <Routes>
           <Route index element={<JobSearch />} />
           <Route path="gerenciar" element={<JobsManagement />} />
+          <Route path="analytics" element={<AnalyticsDashboard />} />
           <Route path="mensagens" element={<MessagesPanel />} />
           <Route path="perfil" element={<ProfileEdit />} />
         </Routes>
