@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,8 +46,8 @@ type JobFormData = z.infer<typeof jobSchema>;
 
 interface JobFormProps {
   job?: Job | null;
-  companyId: string;
-  onSubmit: (data: JobFormData & { skills_required: string[] }) => void;
+  companyId?: string | null;
+  onSubmit: (data: JobFormData & { skills_required: string[]; company_id?: string }) => void;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -68,8 +70,24 @@ const brazilianStates = [
 export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFormProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>(job?.skills_required || []);
   const [newTag, setNewTag] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(job?.company_id || companyId || '');
   const { data: tags } = useTags();
   const createTag = useCreateTag();
+
+  // Fetch companies for selection (if user doesn't have a company)
+  const { data: companies } = useQuery({
+    queryKey: ['available-companies'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !companyId,
+  });
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<JobFormData>({
     resolver: zodResolver(jobSchema),
@@ -143,7 +161,7 @@ export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFo
   };
 
   const onFormSubmit = (data: JobFormData) => {
-    onSubmit({ ...data, skills_required: selectedTags });
+    onSubmit({ ...data, skills_required: selectedTags, company_id: selectedCompanyId || companyId });
   };
 
   return (
@@ -153,6 +171,23 @@ export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFo
           <CardTitle>Informações Básicas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Seletor de empresa se usuário não está vinculado a uma */}
+          {!companyId && companies && companies.length > 0 && (
+            <div>
+              <Label>Empresa *</Label>
+              <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div>
             <Label htmlFor="title">Título da Vaga *</Label>
             <Input id="title" {...register('title')} placeholder="Ex: Desenvolvedor Full-Stack" />

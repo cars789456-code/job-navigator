@@ -35,7 +35,7 @@ export function JobsManagement() {
   const [viewingCandidates, setViewingCandidates] = useState<Job | null>(null);
   const { data: tags } = useTags();
 
-  // Get user's company
+  // Get user's company (optional)
   const { data: companyMembership } = useQuery({
     queryKey: ['company-membership', user?.id],
     queryFn: async () => {
@@ -46,7 +46,7 @@ export function JobsManagement() {
         .eq('user_id', user.id)
         .maybeSingle();
       
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
     enabled: !!user?.id,
@@ -66,9 +66,9 @@ export function JobsManagement() {
         `)
         .order('created_at', { ascending: false });
 
-      // Filter by company or user
+      // Filter by company or user (or both)
       if (companyMembership?.company_id) {
-        query = query.eq('company_id', companyMembership.company_id);
+        query = query.or(`company_id.eq.${companyMembership.company_id},created_by.eq.${user.id}`);
       } else {
         query = query.eq('created_by', user.id);
       }
@@ -120,9 +120,10 @@ export function JobsManagement() {
 
   const createJob = useMutation({
     mutationFn: async (jobData: any) => {
-      const companyId = companyMembership?.company_id;
+      // Se não tiver empresa, usa a empresa do formulário ou cria sem
+      const companyId = companyMembership?.company_id || jobData.company_id;
       if (!companyId) {
-        throw new Error('Você precisa estar vinculado a uma empresa para criar vagas');
+        throw new Error('Selecione uma empresa para a vaga');
       }
       
       const { data, error } = await supabase
@@ -212,22 +213,9 @@ export function JobsManagement() {
     }
   };
 
-  if (!companyMembership?.company_id) {
-    return (
-      <Card className="text-center py-12">
-        <CardContent>
-          <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="font-semibold mb-2">Vincule-se a uma empresa</h3>
-          <p className="text-muted-foreground mb-4">
-            Para criar e gerenciar vagas, você precisa estar vinculado a uma empresa.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Entre em contato com o administrador da sua empresa para ser adicionado.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+
+  // Usuário pode criar vagas mesmo sem empresa (precisa selecionar uma)
 
   return (
     <div className="space-y-6">
@@ -392,7 +380,7 @@ export function JobsManagement() {
           </DialogHeader>
           <JobForm
             job={editingJob}
-            companyId={companyMembership.company_id}
+            companyId={companyMembership?.company_id}
             onSubmit={handleSubmit}
             onCancel={() => { setIsFormOpen(false); setEditingJob(null); }}
             isLoading={createJob.isPending || updateJob.isPending}
