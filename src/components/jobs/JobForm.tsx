@@ -34,9 +34,6 @@ const jobSchema = z.object({
   city: z.string().min(2, 'Cidade é obrigatória'),
   state: z.string().min(2, 'Estado é obrigatório'),
   zip_code: z.string().optional(),
-  latitude: z.number().optional().nullable(),
-  longitude: z.number().optional().nullable(),
-  location_name: z.string().optional(),
   is_remote: z.boolean().default(false),
   is_featured: z.boolean().default(false),
   is_active: z.boolean().default(true),
@@ -47,7 +44,7 @@ type JobFormData = z.infer<typeof jobSchema>;
 interface JobFormProps {
   job?: Job | null;
   companyId?: string | null;
-  onSubmit: (data: JobFormData & { skills_required: string[]; company_id?: string }) => void;
+  onSubmit: (data: JobFormData & { skills_required: string[] }) => void;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -70,23 +67,23 @@ const brazilianStates = [
 export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFormProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>(job?.skills_required || []);
   const [newTag, setNewTag] = useState('');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(job?.company_id || companyId || '');
   const { data: tags } = useTags();
   const createTag = useCreateTag();
 
-  // Fetch companies for selection (if user doesn't have a company)
+  // Fetch company name if user has a company
   const { data: companies } = useQuery({
-    queryKey: ['available-companies'],
+    queryKey: ['company-name', companyId],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from('companies')
         .select('id, name')
-        .order('name');
+        .eq('id', companyId);
       
       if (error) throw error;
       return data;
     },
-    enabled: !companyId,
+    enabled: !!companyId,
   });
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<JobFormData>({
@@ -161,7 +158,7 @@ export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFo
   };
 
   const onFormSubmit = (data: JobFormData) => {
-    onSubmit({ ...data, skills_required: selectedTags, company_id: selectedCompanyId || companyId });
+    onSubmit({ ...data, skills_required: selectedTags });
   };
 
   return (
@@ -171,20 +168,13 @@ export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFo
           <CardTitle>Informações Básicas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Seletor de empresa se usuário não está vinculado a uma */}
-          {!companyId && companies && companies.length > 0 && (
+          {/* Mostra nome da empresa vinculada */}
+          {companyId && (
             <div>
-              <Label>Empresa *</Label>
-              <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Empresa</Label>
+              <p className="text-sm text-muted-foreground py-2">
+                {companies?.find(c => c.id === companyId)?.name || 'Sua empresa'}
+              </p>
             </div>
           )}
 
@@ -351,10 +341,6 @@ export function JobForm({ job, companyId, onSubmit, onCancel, isLoading }: JobFo
             <div className="md:col-span-2">
               <Label htmlFor="neighborhood">Bairro</Label>
               <Input id="neighborhood" {...register('neighborhood')} />
-            </div>
-            <div>
-              <Label htmlFor="location_name">Nome do Local</Label>
-              <Input id="location_name" {...register('location_name')} placeholder="Escritório" />
             </div>
           </div>
 
