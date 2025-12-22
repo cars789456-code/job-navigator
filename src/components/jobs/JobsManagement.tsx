@@ -120,17 +120,15 @@ export function JobsManagement() {
 
   const createJob = useMutation({
     mutationFn: async (jobData: any) => {
-      // Se não tiver empresa, usa a empresa do formulário ou cria sem
-      const companyId = companyMembership?.company_id || jobData.company_id;
-      if (!companyId) {
-        throw new Error('Selecione uma empresa para a vaga');
+      if (!companyMembership?.company_id) {
+        throw new Error('Você precisa estar vinculado a uma empresa para criar vagas');
       }
       
       const { data, error } = await supabase
         .from('jobs')
         .insert({
           ...jobData,
-          company_id: companyId,
+          company_id: companyMembership.company_id,
           created_by: user?.id,
         })
         .select()
@@ -213,21 +211,24 @@ export function JobsManagement() {
     }
   };
 
-  const [showCompanyModal, setShowCompanyModal] = useState(false);
-
-  // Usuário pode criar vagas mesmo sem empresa (precisa selecionar uma)
+  // Usuário precisa estar vinculado a uma empresa para criar vagas
+  const canCreateJobs = !!companyMembership?.company_id;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold">Minhas Vagas</h1>
-          <p className="text-muted-foreground">Gerencie as vagas da sua empresa</p>
+          <p className="text-muted-foreground">
+            {canCreateJobs ? 'Gerencie as vagas da sua empresa' : 'Cadastre uma empresa para criar vagas'}
+          </p>
         </div>
-        <Button onClick={() => { setEditingJob(null); setIsFormOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nova Vaga
-        </Button>
+        {canCreateJobs && (
+          <Button onClick={() => { setEditingJob(null); setIsFormOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Vaga
+          </Button>
+        )}
       </div>
 
       {/* Search and Filters */}
